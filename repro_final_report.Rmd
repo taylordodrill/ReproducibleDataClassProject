@@ -39,9 +39,11 @@ library(RColorBrewer)
 
 ```
 
+#Introduction
+
 ## SATURN-02 sensor data exploration
 
-The following exploration examines data from the SATURN-02 sensor on the North Oregon Coast, shown as the red point in map below. The goal of this report is to characterize the level of water column stratification that occurs at this site over the course of the summer season, based on several water quality factors. Data from years 2016 - 2018 are examined.
+The following exploration examines data from the SATURN-02 sensor on the North Oregon Coast, shown as the red point in map below. The SATURN-02 sensor is one of a network of endurance stations located in the Columbia River and the Columbia River Plume. It is most representative of marine conditions compared to the other observation stations in the network. The goal of this report is to characterize water column stratification that occurs at this site over the course of the summer season, based on several water quality factors. 
 
 ```{r, echo=FALSE, fig.align="center", fig.cap="Map of the Oregon Coast with SATURN-02 sensor location shown by the red point.", out.extra = ''}
 library(ggplot2)
@@ -109,9 +111,18 @@ nitrate_subset <- nitrate[nitrate$nitrate > 0 & nitrate$nitrate < 50, ]
 
 ```
 
+#Materials and Methods
+
+The data analyzed here was collected from summer deployments of SATURN-02 from years 2016 - 2018. This station is equipped with several different sensors to provide real time information about estuarine and ocean conditions. These sensors log measurements every 15 minutes or less, depending on the sensor. Data were not collected over the same time period each summer due to sensor malfunction and different deployment and retrieval times. 
+
+Data analysis consisted of cleaning data, as there were a fair amount of erroneous measurements and gaps in measurements when sensors malfunctioned. Once data were cleaned, summary statistics were calculated and time series plots were generated. This allowed an initial descriptive and visual characterization of the environmental conditions at this site. 
+
+
+#Results
+
 ##Nitrate Profiles for a North Oregon Coast Site 
 
-The SATURN-02 sensor is one of a network of endurance stations located in the Columbia River and the Columbia River Plume. It is most representative of marine conditions compared to the other observation stations in the network. Data was not collected over the same time period each summer due to sensor malfunction and different deployment and retrieval times. In the table below, the stratification data from all three years has been combined to summarize overall nitrate concentrations at each of the three depths measured by SATURN-02. Time series graphs are also shown below for each year.
+In Table 1 below, the stratification data from all three years has been combined to summarize overall nitrate concentrations at each of the three depths measured by SATURN-02. Time series graphs are also shown below for each year (Figure 2).
 
 ```{r, include=FALSE, out.extra = ''}
 # nitrate plots----------------------------------------------------
@@ -166,7 +177,7 @@ ggarrange(pn1, pn2, pn3,
 
 ```{r, echo = FALSE, warning = FALSE, out.extra = ''}
 kable(nitrate_subset %>% group_by(depth) %>% 
-  summarise_each (funs(mean, sd, min, max), nitrate), caption = "Descriptive statistics for nitrate values at three depths. Depth is measured in meters, and nitrate descriptive statistics are in ug/ L.")
+  summarise_each (funs(mean, sd, min, max), nitrate), caption = "Descriptive statistics for nitrate values at three depths. Depth is measured in meters, and nitrate descriptive statistics are in mg/ L.")
 
 ```
 
@@ -176,7 +187,7 @@ The time series graphs and the summary statistics indicate that there is a strik
 
 ##Dissolved Oxygen Profiles for a North Oregon Coast Site
 
-Dissolved oxygen (DO) concentration may also vary by depth in the summer when the water column is not well mixed. In a manner similar to the description of the nitrate data, a table of overall summary statistics and a time series plot is provided. The oxygen sensors were available for a range of depths of higher resolution. Note that sensors were deployed and retrieved at different dates for different years. 
+Dissolved oxygen (DO) concentration may also vary more strongly by depth in the summer when the water column is not well mixed. In a manner similar to the description of the nitrate data, a table (Table 2) of overall summary statistics and a time series plot (Figure 3) is provided. The oxygen sensors were available for a range of depths of higher resolution. Note that sensors were deployed and retrieved at different dates for different years. 
 
 ```{r, echo = FALSE, warning = FALSE, out.extra = ''}
 kable(DO_subset %>% group_by(depth) %>% 
@@ -246,7 +257,7 @@ The time series graphs and the summary statistics show a separation in DO depend
 
 ##Temperature Profiles for a North Oregon Coast Site
 
-Temperature is a strong indicator of a stratified water column. The unmixed waters of summer can form a thermocline. Again, the following characterization of the water column includes a table of overall summary statistics and time series plot for each year from 2016 - 2018. 
+Temperature is a strong indicator of a stratified water column. The unmixed waters of summer can form a thermocline. Again, the following characterization of the water column includes a table (Table 3) of overall summary statistics and time series plot (Figure 4) for each year from 2016 - 2018. 
 
 ```{r, echo = FALSE, warning = FALSE, out.extra = ''}
 kable(temp %>% group_by(depth) %>% 
@@ -307,5 +318,10 @@ ggarrange(pt0, pt1, pt2,
 
 The time series graphs and the summary statistics indicate variation in temperature by depth, with cooler temperatures at greater depths. The mean temperature at 1 m depth is `r mean(temp$water_temperature[temp$depth == 1])` $^\circ$C, compared to the mean temperature at 21 m depth, `r mean(temp$water_temperature[temp$depth == 35])` $^\circ$C. Temperature at greater depth also seems to be less variable. In addition, temperature appears less differentiated between the depths as summer turns to autumn. 
 
-Next steps for analysis might include time series analyses for differences between years. Now that we have a pipeline for importing and cleaning time series data from the SATURN sensors, this initial characterization of water column stratification could easily be applied to data from other SATURN sensors, some of which could provide year-round environmental data on the Columbia River Estuary. 
+
+#Discussion
+
+Overall, this analysis provided a characterization of how three water quality factors (nitrate, DO, and temperature) vary depending on depth in the water column during the summer at a site on the Northern Oregon Coast. Perhaps most interesting of the environmental variables examined is nitrate, which showed stark differences between depths. This could be due to stratification and a water column that is not mixed enough to transport nutrients from depths to the surface. Alternatively, the low nitrate concentrations observed at shallow depths could be due to biological draw down of N. 
+
+Next steps for analysis might include time series analyses for differences between years, or a statistical test for difference between depths. Now that we have a pipeline for importing and cleaning time series data from the SATURN sensors, this initial characterization of water column stratification could easily be applied to data from other SATURN sensors, some of which could provide year-round environmental data on the Columbia River Estuary. 
 
