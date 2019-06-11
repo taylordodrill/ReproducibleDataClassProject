@@ -1,0 +1,312 @@
+---
+title: "Reproducible Research Final Report"
+author: "Taylor N. Dodrill"
+date: "5/31/2019"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.pos= "h")
+
+# install.packages("xts", repos = "http://cran.us.r-project.org")
+# install.packages("scales", repos = "http://cran.us.r-project.org")
+# install.packages("gridExtra", repos = "http://cran.us.r-project.org")
+# install.packages("ggpubr", repos = "http://cran.us.r-project.org")
+# install.packages("wesanderson", repos = "http://cran.us.r-project.org")
+# install.packages("maps", repos = "http://cran.us.r-project.org")
+# install.packages("leaflet", repos = "http://cran.us.r-project.org" )
+# install.packages("leaflet.extras", repos = "http://cran.us.r-project.org")
+# install.packages("mapview", repos = "http://cran.us.r-project.org")
+# install.packages("dplyr", repos = "http://cran.us.r-project.org")
+# install.packages("plyr", repos = "http://cran.us.r-project.org")
+# install.packages("tidyr", repos = "http://cran.us.r-project.org")
+library(xts)
+library(scales)
+library(gridExtra)
+library(ggpubr)
+library(wesanderson)
+library(maps)
+library(leaflet)
+library(leaflet.extras)
+library(dplyr)
+library(tidyr)
+library(plyr)
+library(ggplot2)
+library(lubridate)
+library(knitr)
+library(RColorBrewer)
+
+```
+
+## SATURN-02 sensor data exploration
+
+The following exploration examines data from the SATURN-02 sensor on the North Oregon Coast, shown as the red point in map below. The goal of this report is to characterize the level of water column stratification that occurs at this site over the course of the summer season, based on several water quality factors. Data from years 2016 - 2018 are examined.
+
+```{r, echo=FALSE, fig.align="center", fig.cap="Map of the Oregon Coast with SATURN-02 sensor location shown by the red point.", out.extra = ''}
+library(ggplot2)
+lat <- 46.132
+long <- -124.102
+saturn <- data.frame(lat, long)
+
+map("state", region = c("Washington", "Oregon"), fill = T, col = "darkolivegreen4", xlim = c(-125, -116), ylim = c(42, 49))
+map("county", "Oregon", add = T)
+points(long, lat, col = "red", pch = 20)
+
+```
+
+
+
+```{r data_import_clean, include=FALSE}
+
+# this chunk reads in and cleans all the SATURN-02 data that will be used in this report
+
+# read in SAT02 Nitrate Files--------------------------------------
+files2 <- list.files(path = "sat02", pattern = "s2_nitrate*", full.names = T)
+nitrate_data <- do.call(rbind.fill, lapply(files2, read.csv))
+#format nitrate files-------------------------------------------
+names(nitrate_data)[names(nitrate_data) == "time.YYYY.MM.DD.hh.mm.ss.PST."] <- "date"
+nitrate_data$date <- strptime(nitrate_data$date, "%m/%d/%y %H:%M", tz="America/Los_Angeles")
+df.xts <- xts(x = nitrate_data[, c(2:3)], order.by = nitrate_data[, "date"])
+nitrate <- data.frame(datetime = index(df.xts), df.xts[, c(1:2)], row.names = NULL)
+
+# remove erroneous data points--------------------------------------
+nitrate_subset <- nitrate[nitrate$nitrate > 0 & nitrate$nitrate < 50, ]
+
+# read in SAT02 DO files----------------------------------------------------
+files <- list.files(path = "sat02", pattern = "s2_DO*", full.names = T)
+DO_data <- 
+  do.call(rbind.fill,
+              lapply(files, read.csv))
+
+# format DO files-----------------------------------------------
+names(DO_data)[names(DO_data) == "time.YYYY.MM.DD.hh.mm.ss.PST."] <- "date"
+DO_data$date <- strptime(DO_data$date, "%m/%d/%y %H:%M", tz="America/Los_Angeles")
+df.xts <- xts(x = DO_data[, c(2:4)], order.by = DO_data[, "date"])
+hrAvg <- period.apply(df.xts, endpoints(df.xts, on = "hours", 1), function(x) apply(x, 2, mean))
+DO2 <- data.frame(datetime = index(hrAvg), hrAvg[, c(1:3)], row.names = NULL)
+DO <- data.frame(datetime = index(df.xts), df.xts[, c(1:3)], row.names = NULL)
+# DO2 is hourly averages, DO is all datetimes unaveraged
+
+# SAT02 temperaturefiles----------------------------------------------
+files3 <- list.files(path = "sat02", pattern = "s2_temp*", full.names = T)
+temp_data <- 
+  do.call(rbind.fill,
+          lapply(files3, read.csv))
+
+#format temperature files-------------------------------------------
+names(temp_data)[names(temp_data) == "time.YYYY.MM.DD.hh.mm.ss.PST."] <- "date"
+temp_data$date <- strptime(temp_data$date, "%m/%d/%y %H:%M", tz="America/Los_Angeles")
+df.xts <- xts(x = temp_data[, c(2:3)], order.by = temp_data[, "date"])
+temp <- data.frame(datetime = index(df.xts), df.xts[, c(1:2)], row.names = NULL)
+
+# remove erroneous data points--------------------------------------
+DO_subset <- DO[DO$oxygen > 0 & DO$oxygen < 20, ]
+nitrate_subset <- nitrate[nitrate$nitrate > 0 & nitrate$nitrate < 50, ]
+# temperature data appeared accurate
+
+# data to work with now = DO_subset, nitrate_subset, and temp
+
+```
+
+##Nitrate Profiles for a North Oregon Coast Site 
+
+The SATURN-02 sensor is one of a network of endurance stations located in the Columbia River and the Columbia River Plume. It is most representative of marine conditions compared to the other observation stations in the network. Data was not collected over the same time period each summer due to sensor malfunction and different deployment and retrieval times. In the table below, the stratification data from all three years has been combined to summarize overall nitrate concentrations at each of the three depths measured by SATURN-02. Time series graphs are also shown below for each year.
+
+```{r, include=FALSE, out.extra = ''}
+# nitrate plots----------------------------------------------------
+pn <- ggplot(nitrate_subset, aes(x = datetime, y = nitrate)) + 
+  geom_line(aes(y = nitrate, color = factor(depth)), size = 0.5, linetype = 1) +
+  scale_color_manual(values = wes_palette("Darjeeling1")) +
+  ylab("Nitrate (mg/L)") + xlab("")  + 
+  theme_bw() + theme(legend.text=element_text(size=10), axis.title = element_text(size = 10), axis.text = element_text(size = 10)) + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#2016
+# make plots for each year
+invisible(startTime <- as.POSIXct("2016-05-26 12:45:00"))
+endTime <- as.POSIXct("2016-10-17 12:59:00")
+# create a start and end time R object
+start.end <- c(startTime,endTime)
+start.end
+pn1 <- pn + (scale_x_datetime(limits=start.end,
+                              breaks=date_breaks("10 days"),
+                              labels=date_format("%b-%d"))) +
+  scale_y_continuous(breaks = seq(0, 40, by = 5), limits = c(0, 40)) 
+
+# 2017
+startTime2 <- as.POSIXct("2017-05-26 12:15:00")
+endTime2 <- as.POSIXct("2017-08-08 14:52:00")
+# create a start and end time R object
+start.end2 <- c(startTime2,endTime2)
+start.end2
+pn2 <- pn + (scale_x_datetime(limits=start.end2,
+                              breaks=date_breaks("10 days"),
+                              labels=date_format("%b-%d"))) +
+  scale_y_continuous(breaks = seq(0, 40, by = 5), limits = c(0, 40)) 
+
+# 2018
+startTime3 <- as.POSIXct("2018-06-24 16:03:00")
+endTime3 <- as.POSIXct("2018-10-07 01:22:00")
+# create a start and end time R object
+start.end3 <- c(startTime3,endTime3)
+start.end3
+pn3 <- pn + (scale_x_datetime(limits=start.end3,
+                              breaks=date_breaks("10 days"),
+                              labels=date_format("%b-%d"))) +
+  scale_y_continuous(breaks = seq(0, 40, by = 5), limits = c(0, 40)) 
+```
+
+
+```{r, echo=FALSE, warning = FALSE, fig.cap= "Nitrate profiles over summer season 2016 - 2018.", fig.height=6, out.extra = ''}
+ggarrange(pn1, pn2, pn3, 
+          labels = c("2016", "2017", "2018"), vjust = 2, hjust = -1.5,
+          ncol = 1, nrow = 3, common.legend = TRUE)
+
+```
+
+```{r, echo = FALSE, warning = FALSE, out.extra = ''}
+kable(nitrate_subset %>% group_by(depth) %>% 
+  summarise_each (funs(mean, sd, min, max), nitrate), caption = "Descriptive statistics for nitrate values at three depths. Depth is measured in meters, and nitrate descriptive statistics are in ug/ L.")
+
+```
+
+
+The time series graphs and the summary statistics indicate that there is a striking difference in nitrate concentrations depending on the depth of the measurement taken. The mean concentration of the nitrate at 1 m depth is `r mean(nitrate_subset$nitrate[nitrate_subset$depth == 1])` mg/L, compared to the mean concentration of nitrate at 35 m depth, `r mean(nitrate_subset$nitrate[nitrate_subset$depth == 35])` mg/L. The concentration of nitrate at depth is quite a bit higher than it is in the top meter of water, where many photosynthesizing organisims live. Organisms that cannot migrate to depths to obtain nitrate where it is in greater abundance, may experience N limitation if they are unable to obtain it from other sources (e.g. nitrite, dissolved organic nitrogen).
+
+
+##Dissolved Oxygen Profiles for a North Oregon Coast Site
+
+Dissolved oxygen (DO) concentration may also vary by depth in the summer when the water column is not well mixed. In a manner similar to the description of the nitrate data, a table of overall summary statistics and a time series plot is provided. The oxygen sensors were available for a range of depths of higher resolution. Note that sensors were deployed and retrieved at different dates for different years. 
+
+```{r, echo = FALSE, warning = FALSE, out.extra = ''}
+kable(DO_subset %>% group_by(depth) %>% 
+  summarise_each (funs(mean, sd, min, max), oxygen), caption = "Descriptive statistics for DO values at five depths. Depth is measured in meters, and DO descriptive statistics are in mg/ L.")
+
+```
+
+
+
+```{r, include=FALSE}
+# DO plots----------------------------------------------------------
+# 2016
+p <- ggplot(DO_subset, aes(x = datetime, y = oxygen)) + 
+  geom_line(aes(y = oxygen, color = factor(depth)), size = 0.5, linetype = 1) +
+  scale_color_manual(values = wes_palette("Darjeeling1")) +
+  ylab("Dissolved Oxygen (mg/L)") + xlab("") + 
+  theme_bw() + 
+  theme(legend.text=element_text(size=10), axis.title = element_text(size = 10), axis.text = element_text(size = 10)) + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# make plots for each year
+startTime <- as.POSIXct("2016-05-27 12:45:00")
+endTime <- as.POSIXct("2016-10-11 12:59:00")
+# create a start and end time R object
+start.end <- c(startTime,endTime)
+start.end
+p1 <- p + (scale_x_datetime(limits=start.end,
+              breaks=date_breaks("1 month"),
+              labels=date_format("%b-%d"))) +
+              scale_y_continuous(breaks = seq(0, 10.5, by = 1), limits = c(0, 11)) +
+              theme(axis.text.x = element_text(angle = 45, hjust = 1))
+# 2017
+startTime2 <- as.POSIXct("2017-05-30 15:05:00")
+endTime2 <- as.POSIXct("2017-10-31 12:42:00")
+# create a start and end time R object
+start.end2 <- c(startTime2,endTime2)
+start.end2
+p2 <- p + (scale_x_datetime(limits=start.end2,
+                      breaks=date_breaks("1 month"),
+                      labels=date_format("%b-%d"))) +
+  scale_y_continuous(breaks = seq(0, 10.5, by = 1), limits = c(0, 11)) + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# 2018
+startTime3 <- as.POSIXct("2018-06-27 16:03:00")
+endTime3 <- as.POSIXct("2018-10-25 13:32:00")
+# create a start and end time R object
+start.end3 <- c(startTime3,endTime3)
+start.end3
+p3 <- p + (scale_x_datetime(limits=start.end3,
+                      breaks=date_breaks("1 month"),
+                      labels=date_format("%b-%d"))) +
+  scale_y_continuous(breaks = seq(0, 10.5, by = 1), limits = c(0, 11)) + 
+  theme_bw() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+
+```{r, echo=FALSE, warning = FALSE, fig.cap= "Dissolved oxygen profiles over summer season 2016 - 2018.", fig.height=6, out.extra = ''}
+ggarrange(p1, p2, p3,
+          labels = c("2016", "2017", "2018"),
+          ncol = 1, nrow = 3, common.legend = TRUE)
+```
+
+The time series graphs and the summary statistics show a separation in DO depending on the depth of the measurement taken. The mean DO concentration at 1 m depth is `r mean(DO_subset$oxygen[DO_subset$depth == 1])` mg/L, compared to the mean concentration of nitrate at 21 m depth, `r mean(DO_subset$oxygen[DO_subset$depth == 21])` mg/L. 
+
+
+##Temperature Profiles for a North Oregon Coast Site
+
+Temperature is a strong indicator of a stratified water column. The unmixed waters of summer can form a thermocline. Again, the following characterization of the water column includes a table of overall summary statistics and time series plot for each year from 2016 - 2018. 
+
+```{r, echo = FALSE, warning = FALSE, out.extra = ''}
+kable(temp %>% group_by(depth) %>% 
+  summarise_each (funs(mean, sd, min, max), water_temperature), caption = "Descriptive statistics for temperature values at three depths. Depth is measured in meters, and temperature descriptive statistics are in degrees Celsius.")
+
+```
+
+
+```{r, include = FALSE}
+pt <- ggplot(temp, aes(x = datetime, y = water_temperature)) + 
+  geom_line(aes(y = water_temperature, color = factor(depth)), size = 0.5, linetype = 1) +
+  scale_color_manual(values = wes_palette("Darjeeling1")) +
+  ylab(expression('Temperature ('*~degree*C*')')) + xlab("") + 
+  theme_bw() + theme(legend.text=element_text(size=12), axis.title = element_text(size = 12), axis.text = element_text(size = 12)) + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#2016
+startTime0 <- as.POSIXct("2016-05-27 12:23:00")
+endTime0 <- as.POSIXct("2016-10-11 13:34:00")
+# create a start and end time R object
+start.end0 <- c(startTime0,endTime0)
+start.end0
+pt0 <- pt + (scale_x_datetime(limits=start.end0,
+                              breaks=date_breaks("10 days"),
+                              labels=date_format("%b-%d"))) +
+  scale_y_continuous(breaks = seq(0, 25, by = 5), limits = c(0, 25))
+
+#2017
+startTime1 <- as.POSIXct("2017-05-26 11:35:00")
+endTime1 <- as.POSIXct("2017-10-31 12:59:00")
+# create a start and end time R object
+start.end1 <- c(startTime0,endTime0)
+start.end1
+pt1 <- pt + (scale_x_datetime(limits=start.end1,
+                              breaks=date_breaks("10 days"),
+                              labels=date_format("%b-%d"))) +
+  scale_y_continuous(breaks = seq(0, 25, by = 5), limits = c(0, 25))
+
+# 2018
+startTime2 <- as.POSIXct("2018-06-14 13:16:00")
+endTime2 <- as.POSIXct("2018-10-25 13:37:00")
+# create a start and end time R object
+start.end2 <- c(startTime0,endTime0)
+start.end2
+pt2 <- pt + (scale_x_datetime(limits=start.end2,
+                              breaks=date_breaks("10 days"),
+                              labels=date_format("%b-%d"))) +
+  scale_y_continuous(breaks = seq(0, 25, by = 5), limits = c(0, 25))
+
+
+```
+
+```{r, echo=FALSE, warning = FALSE, fig.cap= "Temperature profiles over summer season 2016 - 2018.", fig.height=6, out.extra = ''}
+ggarrange(pt0, pt1, pt2,
+          labels = c("2016", "2017", "2018"),
+          ncol = 1, nrow = 3, common.legend = TRUE)
+
+```
+
+The time series graphs and the summary statistics indicate variation in temperature by depth, with cooler temperatures at greater depths. The mean temperature at 1 m depth is `r mean(temp$water_temperature[temp$depth == 1])` $^\circ$C, compared to the mean temperature at 21 m depth, `r mean(temp$water_temperature[temp$depth == 1])` $^\circ$C. Temperature at greater depth also seems to be less variable. In addition, temperature appears less differentiated between the depths as summer turns to autumn. 
+
+Next steps for analysis might include time series analyses for differences between years. Now that we have a pipeline for importing and cleaning time series data from the SATURN sensors, this initial characterization of water column stratification could easily be applied to data from other SATURN sensors, some of which could provide year-round environmental data on the Columbia River Estuary. 
+
