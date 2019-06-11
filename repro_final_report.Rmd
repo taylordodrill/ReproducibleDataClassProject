@@ -16,20 +16,19 @@ knitr::opts_chunk$set(echo = TRUE, fig.pos= "h")
 # install.packages("ggpubr", repos = "http://cran.us.r-project.org")
 # install.packages("wesanderson", repos = "http://cran.us.r-project.org")
 # install.packages("maps", repos = "http://cran.us.r-project.org")
-# install.packages("leaflet", repos = "http://cran.us.r-project.org" )
-# install.packages("leaflet.extras", repos = "http://cran.us.r-project.org")
-# install.packages("mapview", repos = "http://cran.us.r-project.org")
 # install.packages("dplyr", repos = "http://cran.us.r-project.org")
 # install.packages("plyr", repos = "http://cran.us.r-project.org")
 # install.packages("tidyr", repos = "http://cran.us.r-project.org")
+# install.packages("ggplot2, repos= "http://cran.us.r-project.org")
+# install.packages("lubridate", repos= "http://cran.us.r-project.org")
+# install.packages("knitr", repos= "http://cran.us.r-project.org")
+# install.packages("RColorBrewer", repos= "http://cran.us.r-project.org")
 library(xts)
 library(scales)
 library(gridExtra)
 library(ggpubr)
 library(wesanderson)
 library(maps)
-library(leaflet)
-library(leaflet.extras)
 library(dplyr)
 library(tidyr)
 library(plyr)
@@ -238,7 +237,7 @@ p3 <- p + (scale_x_datetime(limits=start.end3,
 
 ```{r, echo=FALSE, warning = FALSE, fig.cap= "Dissolved oxygen profiles over summer season 2016 - 2018.", fig.height=6, out.extra = ''}
 ggarrange(p1, p2, p3,
-          labels = c("2016", "2017", "2018"),
+          labels = c("2016", "2017", "2018"), vjust = 2, hjust = -1.5,
           ncol = 1, nrow = 3, common.legend = TRUE)
 ```
 
@@ -301,12 +300,12 @@ pt2 <- pt + (scale_x_datetime(limits=start.end2,
 
 ```{r, echo=FALSE, warning = FALSE, fig.cap= "Temperature profiles over summer season 2016 - 2018.", fig.height=6, out.extra = ''}
 ggarrange(pt0, pt1, pt2,
-          labels = c("2016", "2017", "2018"),
+          labels = c("2016", "2017", "2018"), vjust = 2, hjust = -1.5,
           ncol = 1, nrow = 3, common.legend = TRUE)
 
 ```
 
-The time series graphs and the summary statistics indicate variation in temperature by depth, with cooler temperatures at greater depths. The mean temperature at 1 m depth is `r mean(temp$water_temperature[temp$depth == 1])` $^\circ$C, compared to the mean temperature at 21 m depth, `r mean(temp$water_temperature[temp$depth == 1])` $^\circ$C. Temperature at greater depth also seems to be less variable. In addition, temperature appears less differentiated between the depths as summer turns to autumn. 
+The time series graphs and the summary statistics indicate variation in temperature by depth, with cooler temperatures at greater depths. The mean temperature at 1 m depth is `r mean(temp$water_temperature[temp$depth == 1])` $^\circ$C, compared to the mean temperature at 21 m depth, `r mean(temp$water_temperature[temp$depth == 35])` $^\circ$C. Temperature at greater depth also seems to be less variable. In addition, temperature appears less differentiated between the depths as summer turns to autumn. 
 
 Next steps for analysis might include time series analyses for differences between years. Now that we have a pipeline for importing and cleaning time series data from the SATURN sensors, this initial characterization of water column stratification could easily be applied to data from other SATURN sensors, some of which could provide year-round environmental data on the Columbia River Estuary. 
 
